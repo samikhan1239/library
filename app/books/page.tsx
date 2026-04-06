@@ -109,60 +109,77 @@ export default function BooksPage() {
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="p-6 sm:p-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-                <div className="relative">
-                  <BookOpen className="absolute left-4 top-4 w-5 h-5 text-zinc-500 pointer-events-none" />
-                  <Input
-                    placeholder="Book Title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="pl-12 bg-zinc-950/70 border-white/10 h-12 sm:h-14 rounded-2xl text-base sm:text-lg placeholder:text-zinc-500 focus:border-violet-500"
-                  />
-                </div>
+          <CardContent className="p-6 sm:p-8">
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5">
 
-                <div className="relative">
-                  <User className="absolute left-4 top-4 w-5 h-5 text-zinc-500 pointer-events-none" />
-                  <Input
-                    placeholder="Author Name"
-                    value={author}
-                    onChange={(e) => setAuthor(e.target.value)}
-                    className="pl-12 bg-zinc-950/70 border-white/10 h-12 sm:h-14 rounded-2xl text-base sm:text-lg placeholder:text-zinc-500 focus:border-violet-500"
-                  />
-                </div>
+    {/* Title */}
+    <div className="relative">
+      <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <Input
+        placeholder="Book Title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+        text-white placeholder:text-zinc-500 
+        focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+      />
+    </div>
 
-                <div className="relative">
-                  <Hash className="absolute left-4 top-4 w-5 h-5 text-zinc-500 pointer-events-none" />
-                  <Input
-                    placeholder="ISBN Number"
-                    value={isbn}
-                    onChange={(e) => setIsbn(e.target.value)}
-                    className="pl-12 bg-zinc-950/70 border-white/10 h-12 sm:h-14 rounded-2xl text-base sm:text-lg placeholder:text-zinc-500 focus:border-violet-500 font-mono"
-                  />
-                </div>
+    {/* Author */}
+    <div className="relative">
+      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <Input
+        placeholder="Author Name"
+        value={author}
+        onChange={(e) => setAuthor(e.target.value)}
+        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+        text-white placeholder:text-zinc-500 
+        focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+      />
+    </div>
 
-                <Button 
-                  onClick={addBook} 
-                  disabled={!title || !author || !isbn || !rfid}
-                  className="h-12 sm:h-14 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-violet-600 hover:brightness-110 text-white font-semibold rounded-2xl text-base sm:text-lg shadow-lg shadow-violet-500/30 active:scale-95 transition-all w-full lg:w-auto"
-                >
-                  <Plus className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3" />
-                  Add Book
-                </Button>
-              </div>
+    {/* ISBN */}
+    <div className="relative">
+      <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <Input
+        placeholder="ISBN"
+        value={isbn}
+        onChange={(e) => setIsbn(e.target.value)}
+        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+        text-white placeholder:text-zinc-500 font-mono 
+        focus:border-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 transition-all"
+      />
+    </div>
 
-              {/* RFID Field */}
-              <div className="mt-5 sm:mt-6">
-                <div className="relative">
-                  <Input
-                    placeholder="RFID Tag Code"
-                    value={rfid}
-                    onChange={(e) => setRfid(e.target.value)}
-                    className="pl-6 bg-zinc-950/70 border-white/10 h-12 sm:h-14 rounded-2xl text-base sm:text-lg placeholder:text-zinc-500 focus:border-violet-500 font-mono"
-                  />
-                </div>
-              </div>
-            </CardContent>
+    {/* RFID */}
+    <div className="relative">
+      <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <Input
+        placeholder="RFID Code"
+        value={rfid}
+        onChange={(e) => setRfid(e.target.value)}
+        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+        text-white placeholder:text-zinc-500 font-mono 
+        focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+      />
+    </div>
+
+    {/* Button */}
+    <Button 
+      onClick={addBook} 
+      disabled={!title || !author || !isbn || !rfid}
+      className="h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-semibold
+      bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-600
+      hover:scale-[1.03] active:scale-95 transition-all
+      shadow-lg shadow-violet-500/20
+      disabled:opacity-40 disabled:cursor-not-allowed w-full"
+    >
+      <Plus className="w-5 h-5 mr-2" />
+      Add
+    </Button>
+
+  </div>
+</CardContent>
           </Card>
         </motion.div>
 
