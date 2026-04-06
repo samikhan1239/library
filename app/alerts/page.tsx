@@ -224,6 +224,7 @@ export default function AlertsPage() {
           </TabsContent>
         </Tabs>
       </main>
+      <p>h</p>
     </div>
   );
 }
