@@ -9,7 +9,7 @@ import { Trash2, Plus, BookOpen, Search, Hash, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Book {
-  id: string;
+  _id: string;        // MongoDB uses _id
   title: string;
   author: string;
   isbn: string;
@@ -23,43 +23,91 @@ export default function BooksPage() {
   const [isbn, setIsbn] = useState('');
   const [rfid, setRfid] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+
+  // Fetch books from MongoDB
+  const fetchBooks = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/books');
+      if (!res.ok) throw new Error('Failed to fetch books');
+      const data: Book[] = await res.json();
+      setBooks(data);
+    } catch (error) {
+      console.error('Error fetching books:', error);
+      alert('Failed to load books from database');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const savedBooks = JSON.parse(localStorage.getItem('books') || '[]');
-    setBooks(savedBooks);
+    fetchBooks();
   }, []);
 
-  const addBook = () => {
+  const addBook = async () => {
     if (!title || !author || !isbn || !rfid) return;
 
-    const newBook: Book = {
-      id: Date.now().toString(),
-      title: title.trim(),
-      author: author.trim(),
-      isbn: isbn.trim(),
-      rfid: rfid.trim(),
-    };
+    setAdding(true);
 
-    const updatedBooks = [...books, newBook];
-    setBooks(updatedBooks);
-    localStorage.setItem('books', JSON.stringify(updatedBooks));
+    try {
+      const res = await fetch('/api/books', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, author, isbn, rfid }),
+      });
 
-    setTitle(''); 
-    setAuthor(''); 
-    setIsbn(''); 
-    setRfid('');
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to add book');
+        return;
+      }
+
+      // Add new book to the top of the list
+      setBooks([data, ...books]);
+
+      // Clear form
+      setTitle('');
+      setAuthor('');
+      setIsbn('');
+      setRfid('');
+    } catch (error) {
+      console.error('Error adding book:', error);
+      alert('Something went wrong while adding the book');
+    } finally {
+      setAdding(false);
+    }
   };
 
-  const deleteBook = (id: string) => {
-    const updatedBooks = books.filter(b => b.id !== id);
-    setBooks(updatedBooks);
-    localStorage.setItem('books', JSON.stringify(updatedBooks));
+  const deleteBook = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this book?')) return;
+
+    try {
+      const res = await fetch(`/api/books?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete book');
+        return;
+      }
+
+      // Remove from state
+      setBooks(books.filter((b) => b._id !== id));
+    } catch (error) {
+      console.error('Error deleting book:', error);
+      alert('Failed to delete book');
+    }
   };
 
-  const filteredBooks = books.filter(book =>
+  const filteredBooks = books.filter((book) =>
     book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    book.isbn.includes(searchTerm)
+    book.isbn.includes(searchTerm) ||
+    book.rfid.includes(searchTerm)
   );
 
   return (
@@ -109,77 +157,75 @@ export default function BooksPage() {
               </CardTitle>
             </CardHeader>
 
-          <CardContent className="p-6 sm:p-8">
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5">
+            <CardContent className="p-6 sm:p-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5">
+                {/* Title */}
+                <div className="relative">
+                  <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <Input
+                    placeholder="Book Title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+                    text-white placeholder:text-zinc-500 
+                    focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+                  />
+                </div>
 
-    {/* Title */}
-    <div className="relative">
-      <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-      <Input
-        placeholder="Book Title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
-        text-white placeholder:text-zinc-500 
-        focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
-      />
-    </div>
+                {/* Author */}
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <Input
+                    placeholder="Author Name"
+                    value={author}
+                    onChange={(e) => setAuthor(e.target.value)}
+                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+                    text-white placeholder:text-zinc-500 
+                    focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+                  />
+                </div>
 
-    {/* Author */}
-    <div className="relative">
-      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-      <Input
-        placeholder="Author Name"
-        value={author}
-        onChange={(e) => setAuthor(e.target.value)}
-        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
-        text-white placeholder:text-zinc-500 
-        focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
-      />
-    </div>
+                {/* ISBN */}
+                <div className="relative">
+                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <Input
+                    placeholder="Unique ID"
+                    value={isbn}
+                    onChange={(e) => setIsbn(e.target.value)}
+                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+                    text-white placeholder:text-zinc-500 font-mono 
+                    focus:border-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 transition-all"
+                  />
+                </div>
 
-    {/* ISBN */}
-    <div className="relative">
-      <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-      <Input
-        placeholder="ISBN"
-        value={isbn}
-        onChange={(e) => setIsbn(e.target.value)}
-        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
-        text-white placeholder:text-zinc-500 font-mono 
-        focus:border-fuchsia-500 focus:ring-2 focus:ring-fuchsia-500/20 transition-all"
-      />
-    </div>
+                {/* RFID */}
+                <div className="relative">
+                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                  <Input
+                    placeholder="RFID Code"
+                    value={rfid}
+                    onChange={(e) => setRfid(e.target.value)}
+                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
+                    text-white placeholder:text-zinc-500 font-mono 
+                    focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                  />
+                </div>
 
-    {/* RFID */}
-    <div className="relative">
-      <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-      <Input
-        placeholder="RFID Code"
-        value={rfid}
-        onChange={(e) => setRfid(e.target.value)}
-        className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 
-        text-white placeholder:text-zinc-500 font-mono 
-        focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
-      />
-    </div>
-
-    {/* Button */}
-    <Button 
-      onClick={addBook} 
-      disabled={!title || !author || !isbn || !rfid}
-      className="h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-semibold
-      bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-600
-      hover:scale-[1.03] active:scale-95 transition-all
-      shadow-lg shadow-violet-500/20
-      disabled:opacity-40 disabled:cursor-not-allowed w-full"
-    >
-      <Plus className="w-5 h-5 mr-2" />
-      Add
-    </Button>
-
-  </div>
-</CardContent>
+                {/* Add Button */}
+                <Button
+                  onClick={addBook}
+                  disabled={!title || !author || !isbn || !rfid || adding}
+                  className="h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-semibold
+                  bg-gradient-to-r from-violet-600 via-fuchsia-600 to-purple-600
+                  hover:scale-[1.03] active:scale-95 transition-all
+                  shadow-lg shadow-violet-500/20
+                  disabled:opacity-40 disabled:cursor-not-allowed w-full"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  {adding ? 'Adding...' : 'Add'}
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         </motion.div>
 
@@ -195,7 +241,7 @@ export default function BooksPage() {
           <div className="relative w-full sm:w-80 lg:w-96">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 pointer-events-none" />
             <Input
-              placeholder="Search by title, author or ISBN..."
+              placeholder="Search by title, author, ISBN or RFID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-14 bg-zinc-900/70 border-white/10 h-12 sm:h-14 rounded-2xl text-base sm:text-lg placeholder:text-zinc-500 focus:border-fuchsia-500"
@@ -205,7 +251,16 @@ export default function BooksPage() {
 
         {/* Books Grid */}
         <AnimatePresence mode="wait">
-          {filteredBooks.length === 0 ? (
+          {loading ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-zinc-900/50 border border-white/10 rounded-3xl p-16 text-center"
+            >
+              <div className="animate-spin w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full mx-auto mb-6" />
+              <p className="text-xl text-zinc-400">Loading books...</p>
+            </motion.div>
+          ) : filteredBooks.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -213,13 +268,15 @@ export default function BooksPage() {
             >
               <BookOpen className="w-14 h-14 sm:w-16 sm:h-16 mx-auto text-zinc-600 mb-6" />
               <p className="text-xl sm:text-2xl text-zinc-400">No books found</p>
-              <p className="text-zinc-500 mt-3 text-sm sm:text-base">Try adjusting your search or add a new book</p>
+              <p className="text-zinc-500 mt-3 text-sm sm:text-base">
+                Try adjusting your search or add a new book
+              </p>
             </motion.div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
               {filteredBooks.map((book, index) => (
                 <motion.div
-                  key={book.id}
+                  key={book._id}
                   initial={{ opacity: 0, y: 60, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 30, scale: 0.95 }}
@@ -240,7 +297,7 @@ export default function BooksPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteBook(book.id)}
+                          onClick={() => deleteBook(book._id)}
                           className="opacity-50 hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 rounded-xl h-9 w-9 sm:h-10 sm:w-10 transition-all"
                         >
                           <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -254,7 +311,7 @@ export default function BooksPage() {
 
                       <div className="mt-8 space-y-3 sm:space-y-4 text-sm">
                         <div className="flex justify-between items-center bg-zinc-950/60 px-5 py-3 rounded-2xl border border-white/5">
-                          <span className="text-zinc-500">ISBN</span>
+                          <span className="text-zinc-500">Unique Id</span>
                           <span className="font-mono text-white tracking-wider text-sm sm:text-base">{book.isbn}</span>
                         </div>
                         <div className="flex justify-between items-center bg-zinc-950/60 px-5 py-3 rounded-2xl border border-white/5">
