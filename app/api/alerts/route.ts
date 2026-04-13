@@ -17,7 +17,7 @@ export async function GET() {
   }
 }
 
-// ✅ POST: RFID Scan from Hardware (ESP32)
+// ✅ POST: RFID Scan from Hardware (ESP32) - Main Logic
 export async function POST(request: NextRequest) {
   try {
     const { uid } = await request.json();
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     await dbConnect();
 
-    // Find the book by RFID
+    // 1. Find the book by RFID
     const book = await Book.findOne({ rfid: uid });
     if (!book) {
       return NextResponse.json({
@@ -37,16 +37,16 @@ export async function POST(request: NextRequest) {
       }, { status: 200 });
     }
 
-    // Check if the book is currently issued
+    // 2. Check if book is currently issued (using your Issue route logic)
     const activeIssue = await Issue.findOne({
       rfid: uid,
-      returnDate: null,
+      returnDate: null,        // Only active (not returned) issues
     });
 
     const issueStatus = activeIssue ? 'Issued' : 'Not Issued';
 
+    // === If book is issued → No alert (Safe/Green) ===
     if (activeIssue) {
-      // === GREEN: Book is issued → Safe scan, no alert ===
       return NextResponse.json({
         status: 'issued',
         message: 'Book is currently issued - Safe scan',
@@ -56,12 +56,12 @@ export async function POST(request: NextRequest) {
       }, { status: 200 });
     }
 
-    // === RED: Book is NOT issued → Create Alert ===
+    // === If book is NOT issued → Create Alert (Red) ===
     const newAlert = await Alert.create({
       rfidTag: uid,
       bookTitle: book.title,
       bookAuthor: book.author,
-      issueStatus: 'Not Issued',     // ← Now properly saved
+      issueStatus: 'Not Issued',     // ← Saving according to your model
     });
 
     return NextResponse.json({
@@ -92,7 +92,7 @@ export async function PATCH(request: NextRequest) {
       id,
       { 
         status: 'resolved',
-        timestamp: new Date() 
+        timestamp: new Date()
       },
       { new: true }
     );
