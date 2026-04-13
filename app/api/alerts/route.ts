@@ -5,7 +5,7 @@ import Alert from '@/models/Alert';
 import Book from '@/models/Book';
 import Issue from '@/models/Issue';
 
-// ✅ GET: Fetch all alerts (for the AlertsPage)
+// ✅ GET: Fetch all alerts
 export async function GET() {
   try {
     await dbConnect();
@@ -17,10 +17,10 @@ export async function GET() {
   }
 }
 
-// ✅ POST: Hardware RFID Scan → Create Alert if book is NOT issued
+// ✅ POST: RFID Scan from Hardware (ESP32)
 export async function POST(request: NextRequest) {
   try {
-    const { uid } = await request.json();   // uid = RFID tag from ESP32
+    const { uid } = await request.json();
 
     if (!uid) {
       return NextResponse.json({ error: 'UID (RFID) is required' }, { status: 400 });
@@ -28,42 +28,46 @@ export async function POST(request: NextRequest) {
 
     await dbConnect();
 
-    // 1. Find the book by RFID
+    // Find the book by RFID
     const book = await Book.findOne({ rfid: uid });
     if (!book) {
       return NextResponse.json({
         status: 'unknown_rfid',
-        message: 'Unknown RFID tag scanned'
+        message: 'Unknown RFID tag scanned',
       }, { status: 200 });
     }
 
-    // 2. Check if the book is currently issued (active issue)
+    // Check if the book is currently issued
     const activeIssue = await Issue.findOne({
       rfid: uid,
       returnDate: null,
     });
 
+    const issueStatus = activeIssue ? 'Issued' : 'Not Issued';
+
     if (activeIssue) {
-      // Book is issued → no alert (normal scan, maybe return)
+      // === GREEN: Book is issued → Safe scan, no alert ===
       return NextResponse.json({
         status: 'issued',
-        message: 'Book is currently issued',
+        message: 'Book is currently issued - Safe scan',
         bookTitle: book.title,
+        bookAuthor: book.author,
+        issueStatus: 'Issued',
       }, { status: 200 });
     }
 
-    // 3. Book exists but NOT issued → Create Alert (unauthorized scan)
+    // === RED: Book is NOT issued → Create Alert ===
     const newAlert = await Alert.create({
       rfidTag: uid,
       bookTitle: book.title,
       bookAuthor: book.author,
-      status: 'active',
+      issueStatus: 'Not Issued',     // ← Now properly saved
     });
 
     return NextResponse.json({
       status: 'alert_created',
+      message: 'Unauthorized scan detected! Book is not issued.',
       alert: newAlert,
-      message: 'Unauthorized scan detected - Alert created'
     }, { status: 201 });
 
   } catch (error: any) {
@@ -78,20 +82,31 @@ export async function PATCH(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) return NextResponse.json({ error: 'Alert ID required' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Alert ID required' }, { status: 400 });
+    }
 
     await dbConnect();
 
     const updated = await Alert.findByIdAndUpdate(
       id,
-      { status: 'resolved' },
+      { 
+        status: 'resolved',
+        timestamp: new Date() 
+      },
       { new: true }
     );
 
-    if (!updated) return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+    if (!updated) {
+      return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+    }
 
-    return NextResponse.json({ message: 'Alert resolved', alert: updated }, { status: 200 });
+    return NextResponse.json({ 
+      message: 'Alert resolved successfully', 
+      alert: updated 
+    }, { status: 200 });
   } catch (error) {
+    console.error('PATCH alert error:', error);
     return NextResponse.json({ error: 'Failed to resolve alert' }, { status: 500 });
   }
 }
@@ -102,15 +117,21 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) return NextResponse.json({ error: 'Alert ID required' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Alert ID required' }, { status: 400 });
+    }
 
     await dbConnect();
+
     const deleted = await Alert.findByIdAndDelete(id);
 
-    if (!deleted) return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+    if (!deleted) {
+      return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+    }
 
-    return NextResponse.json({ message: 'Alert deleted' }, { status: 200 });
+    return NextResponse.json({ message: 'Alert deleted successfully' }, { status: 200 });
   } catch (error) {
+    console.error('DELETE alert error:', error);
     return NextResponse.json({ error: 'Failed to delete alert' }, { status: 500 });
   }
 }
