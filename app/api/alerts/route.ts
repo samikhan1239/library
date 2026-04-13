@@ -1,115 +1,222 @@
+// app/api/alerts/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Alert from '@/models/Alert';
 import Book from '@/models/Book';
 import Issue from '@/models/Issue';
 
-// ✅ GET: Fetch all alerts (for the AlertsPage)
+// ✅ GET: Fetch all alerts
 export async function GET() {
   try {
     await dbConnect();
-    const alerts = await Alert.find({}).sort({ timestamp: -1 });
+    const alerts = await Alert.find({}).sort({ createdAt: -1 });
+
     return NextResponse.json(alerts, { status: 200 });
   } catch (error) {
     console.error('GET alerts error:', error);
-    return NextResponse.json({ error: 'Failed to fetch alerts' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch alerts' },
+      { status: 500 }
+    );
   }
 }
 
-// ✅ POST: Hardware RFID Scan → Create Alert if book is NOT issued
+// ✅ POST: RFID Scan from ESP32
 export async function POST(request: NextRequest) {
   try {
-    const { uid } = await request.json();   // uid = RFID tag from ESP32
+    const { uid } = await request.json();
 
     if (!uid) {
-      return NextResponse.json({ error: 'UID (RFID) is required' }, { status: 400 });
+      console.log('❌ No UID received');
+      return NextResponse.json(
+        { error: 'UID (RFID) is required' },
+        { status: 400 }
+      );
     }
+
+    console.log(`📡 RFID Scanned: ${uid}`);
 
     await dbConnect();
 
-    // 1. Find the book by RFID
-    const book = await Book.findOne({ rfid: uid });
+    // ✅ Find book
+    const book = await Book.findOne({ rfid: uid.trim() });
+
     if (!book) {
+      console.log(`⚠️ Unknown RFID: ${uid}`);
       return NextResponse.json({
         status: 'unknown_rfid',
-        message: 'Unknown RFID tag scanned'
-      }, { status: 200 });
+        message: 'Unknown RFID tag scanned',
+      });
     }
 
-    // 2. Check if the book is currently issued (active issue)
+    console.log(`✅ Book Found → ${book.title}`);
+
+    // ✅ Check active issue (FIXED)
     const activeIssue = await Issue.findOne({
-      rfid: uid,
-      returnDate: null,
+      rfid: uid.trim(),
+      $or: [
+        { returnDate: null },
+        { returnDate: { $exists: false } }
+      ],
     });
 
+    // 🟢 SAFE CASE
     if (activeIssue) {
-      // Book is issued → no alert (normal scan, maybe return)
+      console.log(`🟢 SAFE: Book is issued`);
+
       return NextResponse.json({
         status: 'issued',
-        message: 'Book is currently issued',
+        message: 'Book is currently issued - Safe scan',
         bookTitle: book.title,
-      }, { status: 200 });
+        bookAuthor: book.author,
+        rfid: uid,
+      });
     }
 
-    // 3. Book exists but NOT issued → Create Alert (unauthorized scan)
+    // 🔴 ALERT CASE
+
+    // ✅ 1. Prevent duplicate active alert
+    const existingAlert = await Alert.findOne({
+      rfidTag: uid.trim(),
+      status: { $ne: 'resolved' },
+    });
+
+    if (existingAlert) {
+      console.log(`⚠️ Duplicate alert prevented`);
+
+      return NextResponse.json({
+        status: 'already_alerted',
+        message: 'Alert already exists for this book',
+      });
+    }
+
+    // ✅ 2. Cooldown (10 sec)
+    const lastAlert = await Alert.findOne({
+      rfidTag: uid.trim(),
+    }).sort({ createdAt: -1 });
+
+    if (
+      lastAlert &&
+      Date.now() - new Date(lastAlert.createdAt).getTime() < 10000
+    ) {
+      console.log(`⏳ Cooldown active`);
+
+      return NextResponse.json({
+        status: 'cooldown',
+        message: 'Please wait before scanning again',
+      });
+    }
+
+    console.log(`🔴 Creating ALERT for ${book.title}`);
+
     const newAlert = await Alert.create({
-      rfidTag: uid,
+      rfidTag: uid.trim(),
       bookTitle: book.title,
       bookAuthor: book.author,
+      issueStatus: 'Not Issued',
       status: 'active',
     });
 
-    return NextResponse.json({
-      status: 'alert_created',
-      alert: newAlert,
-      message: 'Unauthorized scan detected - Alert created'
-    }, { status: 201 });
+    console.log(`🚨 ALERT CREATED: ${newAlert._id}`);
 
-  } catch (error: any) {
-    console.error('Alert scan error:', error);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    return NextResponse.json(
+      {
+        status: 'alert_created',
+        message: 'Unauthorized scan detected',
+        alert: newAlert,
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('❌ Alert POST Error:', error);
+    return NextResponse.json(
+      { error: 'Server error' },
+      { status: 500 }
+    );
   }
 }
 
-// ✅ PATCH: Resolve an alert
+// ✅ PATCH: Resolve alert
 export async function PATCH(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) return NextResponse.json({ error: 'Alert ID required' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Alert ID required' },
+        { status: 400 }
+      );
+    }
 
     await dbConnect();
 
     const updated = await Alert.findByIdAndUpdate(
       id,
-      { status: 'resolved' },
+      {
+        status: 'resolved',
+        resolvedAt: new Date(),
+      },
       { new: true }
     );
 
-    if (!updated) return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'Alert not found' },
+        { status: 404 }
+      );
+    }
 
-    return NextResponse.json({ message: 'Alert resolved', alert: updated }, { status: 200 });
+    console.log(`✅ Alert resolved: ${updated._id}`);
+
+    return NextResponse.json({
+      message: 'Alert resolved successfully',
+      alert: updated,
+    });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to resolve alert' }, { status: 500 });
+    console.error('PATCH alert error:', error);
+    return NextResponse.json(
+      { error: 'Failed to resolve alert' },
+      { status: 500 }
+    );
   }
 }
 
-// ✅ DELETE: Delete resolved alert
+// ✅ DELETE: Delete alert
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) return NextResponse.json({ error: 'Alert ID required' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Alert ID required' },
+        { status: 400 }
+      );
+    }
 
     await dbConnect();
+
     const deleted = await Alert.findByIdAndDelete(id);
 
-    if (!deleted) return NextResponse.json({ error: 'Alert not found' }, { status: 404 });
+    if (!deleted) {
+      return NextResponse.json(
+        { error: 'Alert not found' },
+        { status: 404 }
+      );
+    }
 
-    return NextResponse.json({ message: 'Alert deleted' }, { status: 200 });
+    console.log(`🗑️ Deleted alert: ${deleted._id}`);
+
+    return NextResponse.json({
+      message: 'Alert deleted successfully',
+    });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete alert' }, { status: 500 });
+    console.error('DELETE alert error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete alert' },
+      { status: 500 }
+    );
   }
 }
