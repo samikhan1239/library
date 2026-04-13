@@ -5,11 +5,13 @@ import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trash2, Plus, Users, Mail, Phone, Hash, Search } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Users, Plus, Search, Mail, Phone, Hash, Trash2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 
 interface Member {
-  id: string;
+  _id: string;
   name: string;
   email: string;
   phone: string;
@@ -18,247 +20,322 @@ interface Member {
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [activeTab, setActiveTab] = useState<'add' | 'list'>('add');
+
+  // Add Member Form States
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [memberId, setMemberId] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  // List States
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetchMembers = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/members');
+      if (!res.ok) throw new Error('Failed to fetch members');
+      const data: Member[] = await res.json();
+      setMembers(data);
+    } catch (error) {
+      console.error('Error fetching members:', error);
+      toast.error('Failed to load members');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const savedMembers = JSON.parse(localStorage.getItem('members') || '[]');
-    setMembers(savedMembers);
+    fetchMembers();
   }, []);
 
-  const addMember = () => {
-    if (!name || !email || !phone || !memberId) return;
+  const addMember = async () => {
+    if (!name || !email || !phone || !memberId) {
+      toast.error('Please fill all fields');
+      return;
+    }
 
-    const newMember: Member = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      memberId: memberId.trim(),
-    };
+    setAdding(true);
 
-    const updatedMembers = [...members, newMember];
-    setMembers(updatedMembers);
-    localStorage.setItem('members', JSON.stringify(updatedMembers));
+    try {
+      const res = await fetch('/api/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, memberId }),
+      });
 
-    setName('');
-    setEmail('');
-    setPhone('');
-    setMemberId('');
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to add member');
+        return;
+      }
+
+      setMembers([data, ...members]);
+      toast.success('Member added successfully!', {
+        description: `${name} (${memberId})`,
+      });
+
+      // Clear form
+      setName('');
+      setEmail('');
+      setPhone('');
+      setMemberId('');
+    } catch (error) {
+      console.error('Error adding member:', error);
+      toast.error('Something went wrong while adding member');
+    } finally {
+      setAdding(false);
+    }
   };
 
-  const deleteMember = (id: string) => {
-    const updatedMembers = members.filter(m => m.id !== id);
-    setMembers(updatedMembers);
-    localStorage.setItem('members', JSON.stringify(updatedMembers));
+  const deleteMember = async (id: string, memberName: string) => {
+    if (!confirm(`Are you sure you want to delete "${memberName}"?`)) return;
+
+    try {
+      const res = await fetch(`/api/members?id=${id}`, { method: 'DELETE' });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to delete member');
+        return;
+      }
+
+      setMembers(members.filter((m) => m._id !== id));
+      toast.success(`"${memberName}" has been deleted`);
+    } catch (error) {
+      console.error('Error deleting member:', error);
+      toast.error('Failed to delete member');
+    }
   };
 
-  const filteredMembers = members.filter(member =>
+  const filteredMembers = members.filter((member) =>
     member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.memberId.includes(searchTerm)
+    member.memberId.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white overflow-hidden">
+    <div className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
 
       {/* Background Elements */}
       <div className="fixed inset-0 bg-[radial-gradient(#4f46e510_1px,transparent_1px)] bg-[length:60px_60px]" />
-      <div className="fixed inset-0 bg-gradient-to-br from-cyan-950/30 via-transparent to-blue-950/20" />
+      <div className="fixed inset-0 bg-gradient-to-br from-cyan-950/20 via-transparent to-blue-950/10" />
 
-      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-16 lg:py-20">
+      <main className="relative max-w-7xl mx-auto px-6 py-10">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-12 sm:mb-16"
+          className="mb-12"
         >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 mb-6">
-            <div className="p-4 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-3xl shadow-xl shadow-cyan-500/30 flex-shrink-0">
-              <Users className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
+          <div className="flex items-center gap-4">
+            <div className="p-4 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl">
+              <Users className="w-12 h-12 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white via-zinc-200 to-zinc-400">
-                Library Members
-              </h1>
-              <p className="text-lg sm:text-xl text-zinc-400 mt-3 max-w-lg">
-                Manage your community with elegance
-              </p>
+              <h1 className="text-5xl font-bold tracking-tighter">Library Members</h1>
+              <p className="text-zinc-400 mt-2 text-lg">Manage your community efficiently</p>
             </div>
           </div>
         </motion.div>
 
-        {/* Add Member Form */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-12 sm:mb-16"
-        >
-          <Card className="bg-zinc-900/70 border border-white/10 backdrop-blur-3xl rounded-3xl overflow-hidden shadow-2xl">
-            <CardHeader className="pb-6 sm:pb-8 border-b border-white/10 px-5 sm:px-8">
-              <CardTitle className="flex items-center gap-4 text-white">
-                <div className="p-3 bg-cyan-500/10 rounded-2xl">
-                  <Plus className="w-7 h-7 sm:w-8 sm:h-8 text-cyan-400" />
-                </div>
-                <span className="text-2xl sm:text-3xl font-semibold">Add New Member</span>
-              </CardTitle>
-            </CardHeader>
+        {/* Tabs */}
+        <div className="flex border-b border-white/10 mb-10">
+          <button
+            onClick={() => setActiveTab('add')}
+            className={`px-8 py-4 font-medium text-lg transition-all flex items-center gap-3 border-b-2 ${
+              activeTab === 'add'
+                ? 'border-cyan-500 text-white'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Plus className="w-5 h-5" />
+            Add New Member
+          </button>
 
-            <CardContent className="p-5 sm:p-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5">
-                {/* Name */}
-                <div className="relative group">
-                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-cyan-400 transition-colors pointer-events-none" />
-                  <Input
-                    placeholder="Full Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 text-white placeholder:text-zinc-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all text-base sm:text-lg"
-                  />
-                </div>
-
-                {/* Email */}
-                <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-blue-400 transition-colors pointer-events-none" />
-                  <Input
-                    placeholder="Email Address"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 text-white placeholder:text-zinc-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 transition-all text-base sm:text-lg"
-                  />
-                </div>
-
-                {/* Phone */}
-                <div className="relative group">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-emerald-400 transition-colors pointer-events-none" />
-                  <Input
-                    placeholder="Phone Number"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 transition-all text-base sm:text-lg"
-                  />
-                </div>
-
-                {/* Member ID */}
-                <div className="relative group">
-                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-purple-400 transition-colors pointer-events-none" />
-                  <Input
-                    placeholder="Member ID"
-                    value={memberId}
-                    onChange={(e) => setMemberId(e.target.value)}
-                    className="pl-12 h-12 sm:h-14 rounded-2xl bg-zinc-950/70 border border-white/10 text-white placeholder:text-zinc-500 font-mono focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all text-base sm:text-lg"
-                  />
-                </div>
-
-                {/* Add Button */}
-                <Button
-                  onClick={addMember}
-                  disabled={!name || !email || !phone || !memberId}
-                  className="h-12 sm:h-14 rounded-2xl text-base sm:text-lg font-semibold bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-40 disabled:cursor-not-allowed w-full lg:w-auto"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  Add Member
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Search & Stats */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8 sm:mb-10">
-          <div className="flex items-center gap-4">
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">All Members</h2>
-            <div className="px-3 sm:px-4 py-1 bg-white/5 text-xs sm:text-sm rounded-full text-zinc-400 border border-white/10 whitespace-nowrap">
-              {filteredMembers.length} members
-            </div>
-          </div>
-
-          <div className="relative w-full sm:w-80 lg:w-96">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 pointer-events-none" />
-            <Input
-              placeholder="Search by name, email or Member ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-14 bg-zinc-900/70 border-white/10 h-12 sm:h-14 rounded-2xl text-base sm:text-lg placeholder:text-zinc-500 focus:border-cyan-500"
-            />
-          </div>
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`px-8 py-4 font-medium text-lg transition-all flex items-center gap-3 border-b-2 ${
+              activeTab === 'list'
+                ? 'border-cyan-500 text-white'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            All Members ({members.length})
+          </button>
         </div>
 
-        {/* Members Grid */}
-        <AnimatePresence mode="wait">
-          {filteredMembers.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-zinc-900/50 border border-white/10 rounded-3xl p-12 sm:p-16 text-center"
-            >
-              <Users className="w-14 h-14 sm:w-16 sm:h-16 mx-auto text-zinc-600 mb-6" />
-              <p className="text-xl sm:text-2xl text-zinc-400">No members found</p>
-              <p className="text-zinc-500 mt-3 text-sm sm:text-base">Add new members or adjust your search</p>
-            </motion.div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-              {filteredMembers.map((member, index) => (
-                <motion.div
-                  key={member.id}
-                  initial={{ opacity: 0, y: 60, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 30, scale: 0.95 }}
-                  transition={{ delay: Math.min(index * 0.03, 0.3) }}
-                  whileHover={{ y: -8, scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="group"
+        {/* ====================== ADD MEMBER TAB ====================== */}
+        {activeTab === 'add' && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto"
+          >
+            <Card className="bg-zinc-900/90 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl">
+              <CardHeader className="pb-8">
+                <CardTitle className="text-3xl font-semibold flex items-center gap-4 text-white">
+                  <div className="p-3 bg-cyan-500/10 rounded-2xl">
+                    <Plus className="w-8 h-8 text-cyan-400" />
+                  </div>
+                  Add New Member
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="space-y-6 px-10 pb-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-2 block">Full Name</label>
+                    <div className="relative">
+                      <Users className="absolute left-4 top-3.5 w-5 h-5 text-zinc-500" />
+                      <Input
+                        placeholder="Enter full name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="pl-12 h-14 rounded-2xl bg-zinc-950 border-white/10 focus:border-cyan-500 text-white placeholder:text-zinc-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-2 block">Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-3.5 w-5 h-5 text-zinc-500" />
+                      <Input
+                        type="email"
+                        placeholder="member@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-12 h-14 rounded-2xl bg-zinc-950 border-white/10 focus:border-blue-500 text-white placeholder:text-zinc-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-2 block">Phone Number</label>
+                    <div className="relative">
+                      <Phone className="absolute left-4 top-3.5 w-5 h-5 text-zinc-500" />
+                      <Input
+                        placeholder="+91 98765 43210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        className="pl-12 h-14 rounded-2xl bg-zinc-950 border-white/10 focus:border-emerald-500 text-white placeholder:text-zinc-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-zinc-400 mb-2 block">Member ID</label>
+                    <div className="relative">
+                      <Hash className="absolute left-4 top-3.5 w-5 h-5 text-zinc-500" />
+                      <Input
+                        placeholder="MEM-00123"
+                        value={memberId}
+                        onChange={(e) => setMemberId(e.target.value)}
+                        className="pl-12 h-14 rounded-2xl bg-zinc-950 border-white/10 font-mono focus:border-purple-500 text-white placeholder:text-zinc-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={addMember}
+                  disabled={!name || !email || !phone || !memberId || adding}
+                  className="w-full h-14 text-lg font-semibold rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 mt-6 disabled:opacity-50"
                 >
-                  <Card className="bg-zinc-900/80 border border-white/10 hover:border-cyan-500/60 backdrop-blur-3xl rounded-3xl overflow-hidden h-full shadow-xl transition-all duration-300">
-                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400" />
+                  {adding ? 'Adding Member...' : 'Add Member'}
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
-                    <CardContent className="pt-8 pb-8 px-6 sm:px-8 flex flex-col h-full">
-                      <div className="flex justify-between items-start mb-7">
-                        {/* Avatar */}
-                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-white/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <span className="text-3xl sm:text-4xl font-bold text-cyan-400">
-                            {member.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
+        {/* ====================== ALL MEMBERS TAB (Table) ====================== */}
+        {activeTab === 'list' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-3xl font-semibold">All Members</h2>
 
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteMember(member.id)}
-                          className="opacity-50 hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 rounded-xl h-9 w-9 sm:h-10 sm:w-10 transition-all"
-                        >
-                          <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </Button>
-                      </div>
-
-                      <h3 className="font-semibold text-xl sm:text-2xl leading-tight tracking-tight text-white group-hover:text-cyan-200 transition-colors">
-                        {member.name}
-                      </h3>
-                      <p className="text-base sm:text-lg text-zinc-400 mt-1 break-all">{member.email}</p>
-
-                      <div className="mt-auto pt-8 space-y-3 sm:space-y-4 text-sm">
-                        <div className="flex justify-between items-center bg-zinc-950/60 px-5 py-3 rounded-2xl border border-white/5">
-                          <span className="text-zinc-500">Member ID</span>
-                          <span className="font-mono text-white tracking-wider text-sm sm:text-base">{member.memberId}</span>
-                        </div>
-                        <div className="flex justify-between items-center bg-zinc-950/60 px-5 py-3 rounded-2xl border border-white/5">
-                          <span className="text-zinc-500">Phone</span>
-                          <span className="font-mono text-emerald-400 text-sm sm:text-base">{member.phone}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
+              <div className="relative w-96">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
+                <Input
+                  placeholder="Search by name, email or Member ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-14 h-12 bg-zinc-900/80 border-white/10 rounded-2xl text-white placeholder:text-zinc-500"
+                />
+              </div>
             </div>
-          )}
-        </AnimatePresence>
+
+            <Card className="bg-zinc-900/90 border border-white/10 backdrop-blur-xl rounded-3xl overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/10">
+                    <TableHead className="text-zinc-400 font-medium">Name</TableHead>
+                    <TableHead className="text-zinc-400 font-medium">Email</TableHead>
+                    <TableHead className="text-zinc-400 font-medium">Phone</TableHead>
+                    <TableHead className="text-zinc-400 font-medium">Member ID</TableHead>
+                    <TableHead className="text-right text-zinc-400 w-28">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-20">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="animate-spin w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full" />
+                          <p className="text-zinc-400">Loading members...</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredMembers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-20 text-zinc-400">
+                        No members found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredMembers.map((member) => (
+                      <TableRow
+                        key={member._id}
+                        className="border-white/10 hover:bg-zinc-800/70 transition-colors group"
+                      >
+                        <TableCell className="font-medium text-white">{member.name}</TableCell>
+                        <TableCell className="text-zinc-300">{member.email}</TableCell>
+                        <TableCell className="font-mono text-emerald-400">{member.phone}</TableCell>
+                        <TableCell>
+                          <span className="font-mono text-purple-400 tracking-wider">{member.memberId}</span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteMember(member._id, member.name)}
+                            className="h-9 w-9 text-red-400 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+
+            {filteredMembers.length > 0 && (
+              <p className="text-center text-zinc-500 mt-6 text-sm">
+                Showing {filteredMembers.length} of {members.length} members
+              </p>
+            )}
+          </motion.div>
+        )}
       </main>
     </div>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from 'sonner';
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -38,6 +39,13 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans antialiased">
         {children}
+        <Toaster 
+          position="top-center" 
+          richColors 
+          closeButton 
+          duration={2000}     // ← This makes it auto-close after 4 seconds
+          // You can change to 3000 (3s) or 5000 (5s) as you like
+        />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
