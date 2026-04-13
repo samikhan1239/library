@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, AlertTriangle, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { Trash2, AlertTriangle, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -17,7 +17,6 @@ interface Alert {
   bookAuthor?: string;
   timestamp: string;
   status: 'active' | 'resolved';
-  issueStatus: 'Issued' | 'Not Issued';   // ← Added
 }
 
 export default function AlertsPage() {
@@ -94,7 +93,7 @@ export default function AlertsPage() {
             </div>
             <div>
               <h1 className="text-5xl font-bold tracking-tighter text-white">Alerts Monitor</h1>
-              <p className="text-zinc-400 mt-2 text-lg">Real-time notifications and unauthorized scans</p>
+              <p className="text-zinc-400 mt-2 text-lg">Real-time notifications and overdue alerts</p>
             </div>
           </div>
         </motion.div>
@@ -115,12 +114,12 @@ export default function AlertsPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* ====================== ACTIVE ALERTS TAB ====================== */}
+          {/* ACTIVE ALERTS TAB */}
           <TabsContent value="active" className="mt-0">
-            <Card className="bg-zinc-900/95 border border-rose-500/20 backdrop-blur-xl rounded-3xl overflow-hidden">
+            <Card className="bg-zinc-900/95 border border-white/10 backdrop-blur-xl rounded-3xl overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-2xl text-white flex items-center gap-3">
-                  <AlertCircle className="w-6 h-6 text-rose-500" />
+                  <AlertCircle className="w-6 h-6 text-rose-400" />
                   Active Alerts
                 </CardTitle>
               </CardHeader>
@@ -131,7 +130,6 @@ export default function AlertsPage() {
                       <TableHead className="text-zinc-300">Book Title</TableHead>
                       <TableHead className="text-zinc-300">Author</TableHead>
                       <TableHead className="text-zinc-300">RFID Tag</TableHead>
-                      <TableHead className="text-zinc-300">Issue Status</TableHead>
                       <TableHead className="text-zinc-300">Detected On</TableHead>
                       <TableHead className="text-right text-zinc-300">Action</TableHead>
                     </TableRow>
@@ -139,28 +137,19 @@ export default function AlertsPage() {
                   <TableBody>
                     {activeAlerts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-20 text-zinc-400">
-                          No active alerts. Everything is clear! ✅
+                        <TableCell colSpan={5} className="text-center py-20 text-zinc-400">
+                          No active alerts. Everything is clear!
                         </TableCell>
                       </TableRow>
                     ) : (
                       activeAlerts.map((alert) => (
-                        <TableRow 
-                          key={alert._id} 
-                          className="border-white/10 hover:bg-rose-950/30 bg-rose-950/10"
-                        >
+                        <TableRow key={alert._id} className="border-white/10 hover:bg-zinc-800/70">
                           <TableCell className="font-medium text-white">{alert.bookTitle}</TableCell>
                           <TableCell className="text-zinc-200">
                             {alert.bookAuthor || <span className="text-zinc-500">—</span>}
                           </TableCell>
                           <TableCell>
-                            <span className="font-mono text-rose-400 font-medium">{alert.rfidTag}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2 font-medium text-rose-500">
-                              <XCircle className="w-5 h-5" />
-                              {alert.issueStatus}
-                            </div>
+                            <span className="font-mono text-rose-300">{alert.rfidTag}</span>
                           </TableCell>
                           <TableCell className="text-zinc-300">
                             {new Date(alert.timestamp).toLocaleString()}
@@ -168,7 +157,7 @@ export default function AlertsPage() {
                           <TableCell className="text-right">
                             <Button
                               onClick={() => resolveAlert(alert._id)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
                             >
                               <CheckCircle className="w-4 h-4 mr-2" />
                               Resolve
@@ -183,9 +172,9 @@ export default function AlertsPage() {
             </Card>
           </TabsContent>
 
-          {/* ====================== RESOLVED ALERTS TAB ====================== */}
+          {/* RESOLVED ALERTS TAB */}
           <TabsContent value="resolved" className="mt-0">
-            <Card className="bg-zinc-900/95 border border-emerald-500/20 backdrop-blur-xl rounded-3xl overflow-hidden">
+            <Card className="bg-zinc-900/95 border border-white/10 backdrop-blur-xl rounded-3xl overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-2xl text-white flex items-center gap-3">
                   <CheckCircle className="w-6 h-6 text-emerald-400" />
@@ -199,7 +188,6 @@ export default function AlertsPage() {
                       <TableHead className="text-zinc-300">Book Title</TableHead>
                       <TableHead className="text-zinc-300">Author</TableHead>
                       <TableHead className="text-zinc-300">RFID Tag</TableHead>
-                      <TableHead className="text-zinc-300">Issue Status</TableHead>
                       <TableHead className="text-zinc-300">Resolved On</TableHead>
                       <TableHead className="text-right text-zinc-300">Action</TableHead>
                     </TableRow>
@@ -207,38 +195,21 @@ export default function AlertsPage() {
                   <TableBody>
                     {resolvedAlerts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-20 text-zinc-400">
+                        <TableCell colSpan={5} className="text-center py-20 text-zinc-400">
                           No resolved alerts yet
                         </TableCell>
                       </TableRow>
                     ) : (
                       resolvedAlerts.map((alert) => (
-                        <TableRow 
-                          key={alert._id} 
-                          className="border-white/10 hover:bg-emerald-950/30 bg-emerald-950/10"
-                        >
-                          <TableCell className="font-medium text-white line-through opacity-90">
-                            {alert.bookTitle}
-                          </TableCell>
+                        <TableRow key={alert._id} className="border-white/10 hover:bg-zinc-800/70">
+                          <TableCell className="font-medium text-white line-through">{alert.bookTitle}</TableCell>
                           <TableCell className="text-zinc-400">
                             {alert.bookAuthor || <span className="text-zinc-500">—</span>}
                           </TableCell>
                           <TableCell>
-                            <span className="font-mono text-zinc-500">{alert.rfidTag}</span>
+                            <span className="font-mono text-zinc-400">{alert.rfidTag}</span>
                           </TableCell>
-                          <TableCell>
-                            <div className={`flex items-center gap-2 font-medium ${
-                              alert.issueStatus === 'Not Issued' ? 'text-rose-500' : 'text-emerald-500'
-                            }`}>
-                              {alert.issueStatus === 'Not Issued' ? (
-                                <XCircle className="w-5 h-5" />
-                              ) : (
-                                <CheckCircle className="w-5 h-5" />
-                              )}
-                              {alert.issueStatus}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-emerald-400 font-medium">
+                          <TableCell className="text-emerald-400">
                             {new Date(alert.timestamp).toLocaleString()}
                           </TableCell>
                           <TableCell className="text-right">
